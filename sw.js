@@ -1,6 +1,6 @@
 // Blava Sync : met tous les fichiers en cache pour un fonctionnement 100 % hors ligne.
 // Changer VERSION à chaque mise à jour de l'app pour forcer le rafraîchissement.
-const VERSION = "blava-sync-v1";
+const VERSION = "blava-sync-v2";
 const FILES = [
   "./", "index.html", "manifest.webmanifest", "qrcode.js",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png",

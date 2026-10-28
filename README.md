@@ -9,3 +9,15 @@ Installation : ouvrir le lien, puis « Installer l'application » (Android) ou P
 Fonctionne hors ligne après la première ouverture.
 
 Mise à jour : modifier les fichiers puis incrémenter `VERSION` dans `sw.js`.
+
+## Côté caméra (Raspberry Pi)
+
+En SSH sur la Pi, une seule commande :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/edgarblava/blava-sync/main/pi/install.sh | sudo bash
+```
+
+Remplace `camera.service` par `pi/blava-camera.py` : film auto au démarrage, segments de 45 min, LED ACT 2 s/2 s,
+détection du QR pendant le film, 3 clignotements quand l'heure est recalée.
+Réglages : `/etc/default/blava-camera`. Retour arrière : `sudo blava-camera-rollback`.
