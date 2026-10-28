@@ -30,8 +30,23 @@ if ! apt-get update -qq; then
     warn "Pas d'accès internet : connecte la Pi à un Wi-Fi avec internet puis relance la commande."
     exit 1
 fi
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-    python3-picamera2 python3-pyzbar libzbar0 python3-numpy python3-gpiozero python3-lgpio >/dev/null
+export DEBIAN_FRONTEND=noninteractive
+has_pkg() { [ -n "$(apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/ && $2 != "(none)"')" ]; }
+apt-get install -y -qq --no-install-recommends \
+    python3-picamera2 python3-numpy python3-gpiozero python3-lgpio >/dev/null
+# Bibliothèque zbar : le nom du paquet change selon la version du système
+for z in libzbar0t64 libzbar0; do
+    if has_pkg "$z"; then apt-get install -y -qq --no-install-recommends "$z" >/dev/null; break; fi
+done
+# Module Python pyzbar : paquet système s'il existe, sinon pip
+if ! python3 -c "import pyzbar.pyzbar" 2>/dev/null; then
+    if has_pkg python3-pyzbar; then
+        apt-get install -y -qq --no-install-recommends python3-pyzbar >/dev/null
+    else
+        apt-get install -y -qq --no-install-recommends python3-pip >/dev/null
+        pip3 install -q --break-system-packages pyzbar 2>/dev/null || pip3 install -q pyzbar
+    fi
+fi
 python3 -c "import picamera2, pyzbar.pyzbar, numpy" && ok "Bibliothèques présentes" \
     || { warn "Bibliothèques manquantes, installation interrompue"; exit 1; }
 
