@@ -180,6 +180,7 @@ class Led:
                           if os.path.isdir(p)), None)
         self.lock = threading.Lock()
         self.recording = False
+        self.state = 0
         self._w("trigger", "none")
         self._w("brightness", 0)
         threading.Thread(target=self._loop, daemon=True).start()
@@ -194,28 +195,33 @@ class Led:
             pass
 
     def _loop(self):
-        state, next_flip = 0, 0.0
+        self.state, next_flip = 0, 0.0
         while True:
             time.sleep(0.05)
             with self.lock:
                 if not self.recording:
-                    if state:
-                        state = 0
+                    if self.state:
+                        self.state = 0
                         self._w("brightness", 0)
                     continue
                 now = time.monotonic()
                 if now >= next_flip:
-                    state ^= 1
-                    self._w("brightness", state)
+                    self.state ^= 1
+                    self._w("brightness", self.state)
                     next_flip = now + 2.0
 
     def beep3(self):
         """Trois clignotements rapides en 1 seconde : l'heure vient d'être recalée."""
         def run():
             with self.lock:
+                # pause du clignotement lent : éteint d'abord pour que les 3 éclairs soient bien distincts
+                self._w("brightness", 0); time.sleep(0.3)
                 for _ in range(3):
-                    self._w("brightness", 1); time.sleep(0.17)
-                    self._w("brightness", 0); time.sleep(0.16)
+                    self._w("brightness", 1); time.sleep(0.15)
+                    self._w("brightness", 0); time.sleep(0.18)
+                time.sleep(0.2)
+                # reprise immédiate du rythme normal
+                self._w("brightness", getattr(self, "state", 0) if self.recording else 0)
         threading.Thread(target=run, daemon=True).start()
 
     def shutdown_blink(self):
