@@ -25,26 +25,26 @@ VIDEO_DIR="$HOME_U/videos"
 echo "Carte : $(hostname)   Utilisateur : $U   Vidéos : $VIDEO_DIR"
 
 # ---------------------------------------------------------------- paquets
-step "Installation des bibliothèques (caméra Python + lecture de QR)"
-if ! apt-get update -qq; then
+step "[1/6] Installation des bibliothèques (caméra Python + lecture de QR)"
+if ! apt-get update; then
     warn "Pas d'accès internet : connecte la Pi à un Wi-Fi avec internet puis relance la commande."
     exit 1
 fi
 export DEBIAN_FRONTEND=noninteractive
 has_pkg() { [ -n "$(apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/ && $2 != "(none)"')" ]; }
-apt-get install -y -qq --no-install-recommends \
-    python3-picamera2 python3-numpy python3-gpiozero python3-lgpio >/dev/null
+apt-get install -y -o Dpkg::Progress-Fancy=1 --no-install-recommends \
+    python3-picamera2 python3-numpy python3-gpiozero python3-lgpio
 # Bibliothèque zbar : le nom du paquet change selon la version du système
 for z in libzbar0t64 libzbar0; do
-    if has_pkg "$z"; then apt-get install -y -qq --no-install-recommends "$z" >/dev/null; break; fi
+    if has_pkg "$z"; then apt-get install -y -o Dpkg::Progress-Fancy=1 --no-install-recommends "$z"; break; fi
 done
 # Module Python pyzbar : paquet système s'il existe, sinon pip
 if ! python3 -c "import pyzbar.pyzbar" 2>/dev/null; then
     if has_pkg python3-pyzbar; then
-        apt-get install -y -qq --no-install-recommends python3-pyzbar >/dev/null
+        apt-get install -y -o Dpkg::Progress-Fancy=1 --no-install-recommends python3-pyzbar
     else
-        apt-get install -y -qq --no-install-recommends python3-pip >/dev/null
-        pip3 install -q --break-system-packages pyzbar 2>/dev/null || pip3 install -q pyzbar
+        apt-get install -y -o Dpkg::Progress-Fancy=1 --no-install-recommends python3-pip
+        pip3 install --progress-bar on --break-system-packages pyzbar || pip3 install --progress-bar on pyzbar
     fi
 fi
 python3 -c "import picamera2, pyzbar.pyzbar, numpy" && ok "Bibliothèques présentes" \
@@ -53,7 +53,7 @@ python3 -c "import picamera2, pyzbar.pyzbar, numpy" && ok "Bibliothèques prése
 # ---------------------------------------------------------------- sauvegarde
 BACKUP="/var/backups/blava-camera/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP"
-step "Sauvegarde de l'existant dans $BACKUP"
+step "[2/6] Sauvegarde de l'existant dans $BACKUP"
 [ -f /etc/systemd/system/camera.service ] && cp -a /etc/systemd/system/camera.service "$BACKUP/" && ok "camera.service sauvegardé"
 for f in "$HOME_U/camera.py" /home/*/camera.py; do
     [ -f "$f" ] && cp -a --parents "$f" "$BACKUP/" 2>/dev/null || true
@@ -61,7 +61,7 @@ done
 systemctl is-enabled --quiet camera.service 2>/dev/null && echo camera.service >> "$BACKUP/was-enabled.list" || true
 
 # ------------------------------------------- arrêt des autres enregistreurs
-step "Arrêt des anciens programmes qui utilisent la caméra"
+step "[3/6] Arrêt des anciens programmes qui utilisent la caméra"
 systemctl stop camera.service 2>/dev/null || true
 for unit_file in /etc/systemd/system/*.service; do
     [ -f "$unit_file" ] || continue
@@ -91,7 +91,7 @@ pkill -f 'python3 .*camera\.py' 2>/dev/null || true
 sleep 1
 
 # ---------------------------------------------------------------- programme
-step "Installation du programme caméra"
+step "[4/6] Installation du programme caméra"
 cat > /usr/local/bin/blava-camera.py << 'BLAVA_CAMERA_PY_EOF'
 #!/usr/bin/env python3
 """Blava camera : film automatique, segments, LED ACT et recalage de l'horloge par QR « Blava Sync ».
@@ -589,14 +589,14 @@ RB_EOF
 chmod 755 /usr/local/bin/blava-camera-rollback
 
 # ---------------------------------------------------------------- démarrage
-step "Démarrage"
+step "[5/6] Démarrage"
 systemctl daemon-reload
 systemctl enable camera.service >/dev/null 2>&1
 systemctl restart camera.service
 echo "Patiente 12 secondes, le temps que la caméra démarre..."
 sleep 12
 
-step "Vérifications"
+step "[6/6] Vérifications"
 systemctl is-active --quiet camera.service && ok "Programme caméra actif" || warn "Le programme caméra ne tourne pas : sudo journalctl -u camera.service -n 30"
 LAST=$(ls -t "$VIDEO_DIR"/*.h264 2>/dev/null | head -1)
 if [ -n "$LAST" ]; then
