@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blava Sync</title>
+<meta name="description" content="QR code horodaté pour recaler l'horloge des caméras Blava.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Blava Sync">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4f7fc">
+<script src="qrcode.js"></script>
+<style>
+@font-face{font-family:"Inter Tight";font-weight:400;font-display:swap;src:url(fonts/inter-tight-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Inter Tight";font-weight:500;font-display:swap;src:url(fonts/inter-tight-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:"Inter Tight";font-weight:600;font-display:swap;src:url(fonts/inter-tight-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Geist Mono";font-weight:400;font-display:swap;src:url(fonts/geist-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Geist Mono";font-weight:500;font-display:swap;src:url(fonts/geist-mono-latin-500-normal.woff2) format("woff2")}
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box;height:100%}
+body{margin:0}
+
+/* Charte Blava : fond blanc bleuté, noir pour le texte, bleu marine pour l'accent,
+   grotesque serrée pour les titres, mono espacée en capitales pour les mentions.
+   Look clair unique (choix de marque) ; le QR reste noir sur blanc pur.
+   Mise en page : un seul écran, marque en haut, QR au centre, heure dessous, consignes en bas. */
+:root {
+  --bg: #f4f7fc;
+  --paper: #ffffff;
+  --ink: #0b0b0c;
+  --grey: #77797d;
+  --line: #dfe4ec;
+  --navy: #1d3a86;
+  --haze: #a9bbdd;
+  --f-sans: "Inter Tight", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --f-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 12px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  -webkit-user-select: none;
+  user-select: none;
+  position: relative;
+  overflow-x: hidden;
+}
+/* Grain bleu en arrière-plan, rappel des visuels tramés de la charte */
+#grain {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+header, main, .steps, .row, footer, #installHint { position: relative; z-index: 1; }
+
+header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.brand { display: flex; flex-direction: column; gap: 2px; }
+.wordmark {
+  margin: 0;
+  font-weight: 500;
+  font-size: 2.1rem;
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+}
+.tag {
+  font-family: var(--f-mono);
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+.pill {
+  font-family: var(--f-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--grey);
+}
+.pill.on { color: var(--navy); border-color: var(--haze); }
+
+main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+#qrbox {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  line-height: 0;
+  width: min(92vw, 60vh, 560px);
+  max-width: 100%;
+  aspect-ratio: 1;
+  cursor: pointer;
+}
+#qr { width: 100%; height: 100%; image-rendering: pixelated; }
+.clock {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.7rem, 8.5vw, 2.7rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.clock small { color: var(--navy); font-size: 1em; }
+.label {
+  font-family: var(--f-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--grey);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.steps {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.step {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  border-top: 1px solid var(--line);
+}
+.step:nth-child(-n+2) { border-top: 0; }
+.step:nth-child(even) { border-left: 1px solid var(--line); }
+.step .n {
+  font-family: var(--f-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: var(--grey);
+}
+.step p { margin: 0; font-size: 0.92rem; line-height: 1.3; }
+.step b { color: var(--navy); font-weight: 500; }
+
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button {
+  font: 500 0.88rem var(--f-sans);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+button.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+#installHint { font-size: 0.85rem; line-height: 1.45; color: var(--grey); }
+#err { color: var(--navy); font-size: 0.88rem; text-align: center; max-width: 40ch; }
+footer {
+  font-family: var(--f-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+body.focus header, body.focus .steps, body.focus .row,
+body.focus footer, body.focus #installHint { display: none; }
+@media (max-width: 360px) { .steps { grid-template-columns: 1fr; } .step:nth-child(even) { border-left: 0; } .step:nth-child(2) { border-top: 1px solid var(--line); } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<canvas id="grain" aria-hidden="true"></canvas>
+
+<header>
+  <div class="brand">
+    <h1 class="wordmark">Blava</h1>
+    <span class="tag">Sync.</span>
+  </div>
+  <span class="pill" id="wake">Écran · veille possible</span>
+</header>
+
+<main>
+  <div id="qrbox" title="Toucher pour agrandir"><canvas id="qr" width="580" height="580" aria-label="QR code horodaté qui change 10 fois par seconde"></canvas></div>
+  <div class="clock" id="clock">--:--:--<small>.-</small></div>
+  <div class="label" id="sub">UTC ms · —</div>
+  <div id="err" hidden></div>
+</main>
+
+<section class="steps" aria-label="Mode d'emploi">
+  <div class="step"><span class="n">01</span><p>Luminosité <b>au maximum</b>.</p></div>
+  <div class="step"><span class="n">02</span><p>La caméra doit <b>être en train de filmer</b>.</p></div>
+  <div class="step"><span class="n">03</span><p>Écran face caméra, <b>30 à 50 cm</b>, immobile 3 s.</p></div>
+  <div class="step"><span class="n">04</span><p>La LED clignote <b>3 fois</b> : c'est recalé.</p></div>
+</section>
+
+<div class="row">
+  <button id="focusBtn" class="primary" type="button">Agrandir le QR</button>
+  <button id="addBtn" type="button">Installer sur le téléphone</button>
+</div>
+<div id="installHint" hidden>
+  iPhone : bouton Partager, puis « Sur l'écran d'accueil ».<br>
+  Android : menu ⋮, puis « Ajouter à l'écran d'accueil ».
+</div>
+
+<footer>Blava · Synchro horloge caméras · Usage interne</footer>
+
+<script>
+(function () {
+  "use strict";
+  var PREFIX = "KS1:";          // préfixe reconnu par les caméras
+  var STEP_MS = 100;            // le QR change 10 fois par seconde
+  var canvas = document.getElementById("qr");
+  var ctx = canvas.getContext("2d");
+  var clockEl = document.getElementById("clock");
+  var subEl = document.getElementById("sub");
+  var errEl = document.getElementById("err");
+  var lastBucket = -1;
+
+  function pad(n, w) { n = String(n); while (n.length < w) n = "0" + n; return n; }
+
+  function drawQR(text) {
+    var qr = qrcode(0, "L");
+    qr.addData(text, "Alphanumeric");
+    qr.make();
+    var n = qr.getModuleCount();
+    var quiet = 4;
+    var total = n + 2 * quiet;
+    var cell = Math.floor(canvas.width / total);
+    var size = cell * total;
+    var off = Math.floor((canvas.width - size) / 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000000";
+    for (var r = 0; r < n; r++) {
+      for (var c = 0; c < n; c++) {
+        if (qr.isDark(r, c)) {
+          ctx.fillRect(off + (c + quiet) * cell, off + (r + quiet) * cell, cell, cell);
+        }
+      }
+    }
+  }
+
+  function tick() {
+    var now = Date.now();
+    var bucket = Math.floor(now / STEP_MS);
+    if (bucket !== lastBucket) {
+      lastBucket = bucket;
+      var ms = bucket * STEP_MS;
+      try { drawQR(PREFIX + ms); } catch (e) { showErr("Le QR n'a pas pu être dessiné : " + e.message); }
+      var d = new Date(ms);
+      clockEl.innerHTML = pad(d.getHours(), 2) + ":" + pad(d.getMinutes(), 2) + ":" +
+        pad(d.getSeconds(), 2) + "<small>." + Math.floor(d.getMilliseconds() / 100) + "</small>";
+      subEl.textContent = "UTC ms · " + ms;
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function showErr(msg) { errEl.textContent = msg; errEl.hidden = false; }
+
+  // Grain bleu tramé, dessiné une fois, plus dense dans les coins
+  function drawGrain() {
+    var g = document.getElementById("grain");
+    var w = window.innerWidth, h = window.innerHeight;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    g.width = Math.round(w * dpr); g.height = Math.round(h * dpr);
+    var c = g.getContext("2d");
+    c.clearRect(0, 0, g.width, g.height);
+    c.fillStyle = "rgba(78,104,160,0.55)";
+    var count = Math.round(w * h / 14);
+    var cx1 = w * 1.05, cy1 = h * 0.05, cx2 = -w * 0.1, cy2 = h * 1.0;
+    var R = Math.max(w, h) * 0.55;
+    for (var i = 0; i < count; i++) {
+      var x = Math.random() * w, y = Math.random() * h;
+      var d1 = Math.abs(Math.hypot(x - cx1, y - cy1) - R * 0.7);
+      var d2 = Math.abs(Math.hypot(x - cx2, y - cy2) - R * 0.6);
+      var p = Math.exp(-Math.min(d1, d2) / (R * 0.07)) * 0.9 + 0.03;
+      if (Math.random() < p) c.fillRect(x * dpr, y * dpr, dpr, dpr);
+    }
+  }
+  drawGrain();
+  var rt;
+  window.addEventListener("resize", function () { clearTimeout(rt); rt = setTimeout(drawGrain, 200); });
+
+  // Garder l'écran allumé tant que la page est visible
+  var wakeEl = document.getElementById("wake");
+  var lock = null;
+  function requestWake() {
+    if (!("wakeLock" in navigator)) return;
+    navigator.wakeLock.request("screen").then(function (l) {
+      lock = l;
+      wakeEl.textContent = "Écran · reste allumé";
+      wakeEl.classList.add("on");
+      l.addEventListener("release", function () {
+        lock = null;
+        wakeEl.textContent = "Écran · veille possible";
+        wakeEl.classList.remove("on");
+      });
+    }).catch(function () {});
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") requestWake();
+  });
+  document.addEventListener("click", function () { if (!lock) requestWake(); });
+
+  document.getElementById("focusBtn").addEventListener("click", function () {
+    document.body.classList.add("focus");
+    var el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+  });
+  document.getElementById("qrbox").addEventListener("click", function () {
+    document.body.classList.toggle("focus");
+  });
+  var deferred = null;
+  var addBtn = document.getElementById("addBtn");
+  var standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  if (standalone) addBtn.hidden = true;
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); deferred = e; });
+  window.addEventListener("appinstalled", function () { addBtn.hidden = true; });
+  addBtn.addEventListener("click", function () {
+    if (deferred) { deferred.prompt(); deferred = null; }
+    else { document.getElementById("installHint").hidden = false; }
+  });
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+
+  if (typeof qrcode !== "function") {
+    showErr("Le générateur de QR ne s'est pas chargé. Ferme et rouvre l'application.");
+  } else {
+    requestWake();
+    requestAnimationFrame(tick);
+  }
+})();
+</script>
+
+</body>
+</html>
