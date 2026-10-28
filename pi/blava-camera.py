@@ -5,8 +5,8 @@
 - LED ACT : 2 s allumée / 2 s éteinte pendant le film.
 - Pendant le film uniquement, cherche QR_HZ fois par seconde un QR « KS1:<ms UTC> » (app Blava Sync).
   Quand une présentation est validée (3 lectures concordantes) : recale l'horloge si elle ne l'est pas
-  encore depuis ce démarrage, corrige les épisodes déjà filmés (clock-episode fix qr), et fait
-  3 clignotements rapides de la LED en 1 s.
+  encore depuis ce démarrage, corrige les épisodes déjà filmés (clock-episode fix qr), démarre un
+  nouveau fichier vidéo à l'heure juste, et fait 3 clignotements rapides de la LED en 1 s.
 - Pour chaque vidéo : <video>.time.json (clock-episode) et <video>.frames.csv (horodatage de chaque image).
 - Bouton optionnel (BTN_PIN) : appui court = démarrer/arrêter le film, appui long 5 s = éteindre.
 Réglages : /etc/default/blava-camera
@@ -322,6 +322,9 @@ def apply_qr_time(offset, recorder, n_reads):
                        "[ -e /dev/rtc0 ] && hwclock -w", shell=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         log.info("Horloge recalée par QR (écart corrigé : %+.3f s)", delta)
+        # Nouveau fichier, nommé à l'heure juste : ce qui a été filmé avant le QR reste dans le précédent.
+        if recorder.recording:
+            recorder.next_segment()
     else:
         lvl = log.warning if abs(delta) > 2 else log.info
         lvl("QR lu (horloge déjà recalée ce démarrage, écart mesuré : %+.3f s)", delta)
